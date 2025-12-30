@@ -26,6 +26,10 @@ export interface SalesOrderItemDTO {
   unitPrice: number
   totalPrice?: number
   remark?: string
+  manageType?: number // 前端辅助字段，用于判断显示什么输入框
+  batchNo?: string
+  snList?: string[]   // 序列号列表
+  expireDate?: string
 }
 
 export interface SalesOrderDetail {

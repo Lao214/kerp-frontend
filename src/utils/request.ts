@@ -5,7 +5,7 @@ import { ElMessage } from 'element-plus'
 const service = axios.create({
     // 这里指向 vite.config.ts 里的代理配置
     baseURL: '/api',
-    timeout: 20000 // 请求超时时间
+    timeout: 25000 // 请求超时时间
 })
 
 // request 拦截器 (发送请求前做的事)
@@ -19,7 +19,7 @@ service.interceptors.request.use(
             // 但我们在后端生成 Token 时如果已经加了 Bearer，这里就不用加
             // 根据之前的代码，后端返回的是: "Bearer " + UUID
             // 所以这里直接传即可
-            config.headers['Authorization'] = token
+            config.headers['kerp-token'] = token
         }
         return config
     },

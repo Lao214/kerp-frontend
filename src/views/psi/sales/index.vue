@@ -130,7 +130,7 @@
                                     <!-- 下拉框里显示 编码+名称 -->
                                     <span style="float: left">{{ p.productName }}</span>
                                     <span style="float: right; color: #8492a6; font-size: 13px">{{ p.productCode
-                                        }}</span>
+                                    }}</span>
                                 </el-option>
                             </el-select>
                         </template>
@@ -165,6 +165,16 @@
                         </template>
                     </el-table-column>
 
+                    <el-table-column label="SN录入" align="center" width="120">
+                        <template #default="{ row }">
+                            <el-button v-if="row.manageType === 2" link type="danger" icon="Barcode"
+                                @click="openSnDialog(row)">
+                                {{ (row.snList && row.snList.length > 0) ? `已选${row.snList.length}个` : '扫码出库' }}
+                            </el-button>
+                            <span v-else style="color:#999">-</span>
+                        </template>
+                    </el-table-column>
+
                     <el-table-column label="操作" width="80" align="center" fixed="right">
                         <template #default="{ $index }">
                             <el-button type="danger" link icon="Delete" @click="handleDeleteRow($index)"></el-button>
@@ -187,12 +197,39 @@
             <!-- 给组件包一个 id，供 v-print 指令查找 -->
             <div id="printMe">
                 <!-- 引入刚才写的组件，传入数据 -->
-                <SalesPrintTemplate  v-if="printData.orderNo"  :data="printData"  :user-name="userStore.username || 'Admin'" />
+                <SalesPrintTemplate v-if="printData.orderNo" :data="printData"
+                    :user-name="userStore.username || 'Admin'" />
             </div>
         </div>
-        
+
         <!-- 触发按钮 -->
         <button v-show="false" ref="printBtnRef" v-print="printObj"></button>
+
+
+        <el-dialog title="扫码出库" v-model="snVisible" width="500px">
+            <el-alert type="warning" :closable="false" style="margin-bottom: 10px;">
+                需出库数量：<b>{{ currentRow.quantity }}</b>
+            </el-alert>
+
+            <!-- 扫码输入框 -->
+            <el-input v-model="currentInputSn" placeholder="请扫描SN码后回车" @keyup.enter="addSnTag" > <!-- 🔥 核心就是这个监听回车 -->
+                <template #append>
+                    <el-button @click="addSnTag">添加</el-button>
+                </template>
+            </el-input>
+
+            <!-- 已录入的 SN 列表 -->
+            <div style="margin-top: 10px; border: 1px solid #eee; padding: 10px; min-height: 100px;">
+                <el-tag v-for="(sn, index) in currentRow.snList" :key="index" closable
+                    style="margin-right: 5px; margin-bottom: 5px;" @close="removeSnTag(index)">
+                    {{ sn }}
+                </el-tag>
+            </div>
+
+            <template #footer>
+                <el-button @click="snVisible = false">完成</el-button>
+            </template>
+        </el-dialog>
 
     </div>
 </template>
@@ -208,6 +245,41 @@ import { useUserStore } from '../../../stores/user'
 // 👇 1. 引入新组件，并添加类型注释解决 Vetur 插件报错
 // @ts-ignore
 import SalesPrintTemplate from '../../../components/SalesPrintTemplate.vue'
+
+
+const snVisible = ref(false)
+const currentInputSn = ref('')
+const currentRow = ref<any>({})
+
+const openSnDialog = (row: any) => {
+    currentRow.value = row
+    if (!row.snList) row.snList = []
+    snVisible.value = true
+}
+
+const addSnTag = () => {
+    const sn = currentInputSn.value.trim()
+    if (!sn) return
+
+    // 校验是否重复录入
+    if (currentRow.value.snList.includes(sn)) {
+        ElMessage.warning('该SN码已在列表中')
+        return
+    }
+
+    // 校验数量是否超标
+    if (currentRow.value.snList.length >= currentRow.value.quantity) {
+        ElMessage.warning('录入数量已达标，不可多录')
+        return
+    }
+
+    currentRow.value.snList.push(sn)
+    currentInputSn.value = '' // 清空输入框，方便下一次扫码
+}
+
+const removeSnTag = (index: number) => {
+    currentRow.value.snList.splice(index, 1)
+}
 
 const userStore = useUserStore()
 const printBtnRef = ref() // 绑定那个隐藏按钮
@@ -426,31 +498,94 @@ const handleProductChange = (val: string | number, row: SalesOrderItemDTO) => {
 const handleSubmit = async () => {
     if (!formRef.value) return
 
-    // 1. 校验表头
     await formRef.value.validate(async (valid) => {
         if (valid) {
-            // 2. 校验表体 (必须有一行数据)
+            // ============ 🔥 WMS 核心校验逻辑开始 🔥 ============
+
+            // 检查明细行是否为空
             if (form.items.length === 0) {
                 ElMessage.warning('请至少添加一行商品明细！')
                 return
             }
 
-            // 3. 校验每一行是否选了商品
-            for (const item of form.items) {
-                if (!item.productId) {
-                    ElMessage.warning('请检查明细行，有未选择商品的行！')
+            // 遍历每一行进行“深度质检”
+            for (const [index, item] of form.items.entries()) {
+                const rowNum = index + 1
+                const pName = item.productName || '未知商品'
+
+                // 1. 检查基础数量
+                if (!item.quantity || item.quantity <= 0) {
+                    ElMessage.error(`第${rowNum}行商品【${pName}】数量必须大于0`)
                     return
                 }
+
+                // 2. 检查批次商品 (manageType === 1)
+                if (item.manageType === 1) {
+                    if (!item.batchNo) {
+                        ElMessage.error(`第${rowNum}行商品【${pName}】是批次管理，必须录入【批次号】`)
+                        return
+                    }
+                    // 🔥 新增：校验过期日期
+                    if (!item.expireDate) {
+                        ElMessage.error(`第${rowNum}行商品【${pName}】是批次管理，必须录入【过期日期】`)
+                        return
+                    }
+
+                     // 将 expireDate 转为 Date 对象（兼容字符串 YYYY-MM-DD）
+                    const expireDate = new Date(item.expireDate)
+                    // 处理可能的无效日期
+                    if (isNaN(expireDate.getTime())) {
+                        ElMessage.error(`第${rowNum}行商品【${pName}】的过期日期格式无效，请使用 YYYY-MM-DD 格式`)
+                        return
+                    }
+
+                    // 获取今天的日期（只比较日期部分，忽略时分秒）
+                    const today = new Date();
+                    today.setHours(0, 0, 0, 0);
+                    expireDate.setHours(0, 0, 0, 0);
+
+                    if (expireDate <= today) {
+                        ElMessage.error(`第${rowNum}行商品【${pName}】已过期（过期日期：${item.expireDate}），不允许入库/出库！`)
+                        return
+                    }
+                }
+
+                // 3. 检查序列号商品 (manageType === 2)
+                if (item.manageType === 2) {
+                    const requiredQty = item.quantity
+                    const inputSnList = item.snList || [] // 防空指针
+                    const actualQty = inputSnList.length
+
+                    if (requiredQty !== actualQty) {
+                        ElMessage.error(
+                            `第${rowNum}行商品【${pName}】是序列号管理，单据数量 ${requiredQty}，实际录入SN ${actualQty} 个。数量不一致！`
+                        )
+                        return // 阻断提交
+                    }
+
+                    // 3.1 还可以加一个简单的查重校验（防止同一个单据里录了重复的SN）
+                    const uniqueSn = new Set(inputSnList)
+                    if (uniqueSn.size !== inputSnList.length) {
+                        ElMessage.error(`第${rowNum}行商品【${pName}】录入了重复的SN码，请检查！`)
+                        return
+                    }
+                }
             }
+            // ============ 🔥 WMS 核心校验逻辑结束 🔥 ============
 
             loading.value = true
             try {
+                // 调用对应的 API (采购用 addPurchaseOrderApi，销售用 addSalesOrderApi)
+                // await addPurchaseOrderApi(form) 
+                // 这里的 API 根据你当前的文件是 采购 还是 销售 自己换一下
                 await addSalesOrderApi(form)
-                ElMessage.success('销售单创建成功！')
+
+                ElMessage.success('单据创建成功！')
                 visible.value = false
-                getList() // 👈 加上这行
-                // 这里可以重置表单 form.items = []
+                // 重置表单
                 form.items = []
+                form.remark = ''
+                getList()
             } finally {
                 loading.value = false
             }

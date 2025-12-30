@@ -49,6 +49,14 @@
                         <el-tag v-else type="info">下架</el-tag>
                     </template>
                 </el-table-column>
+                <!-- 在单位列后面加一列 -->
+                <el-table-column label="管控类型" align="center" width="100">
+                    <template #default="{ row }">
+                        <el-tag v-if="row.manageType === 0" type="info">普通</el-tag>
+                        <el-tag v-else-if="row.manageType === 1" type="warning">批次</el-tag>
+                        <el-tag v-else-if="row.manageType === 2" type="danger">序列号</el-tag>
+                    </template>
+                </el-table-column>
                 <el-table-column label="操作" align="center" width="200" fixed="right">
                     <!-- 表格里的操作列 -->
                     <template #default="scope">
@@ -89,6 +97,14 @@
                     <el-radio-group v-model="productForm.status">
                         <el-radio :label="1">上架</el-radio>
                         <el-radio :label="0">下架</el-radio>
+                    </el-radio-group>
+                </el-form-item>
+                <!-- 在 Dialog 的 Form 里增加 -->
+                <el-form-item label="管控类型" prop="manageType">
+                    <el-radio-group v-model="productForm.manageType">
+                        <el-radio :label="0">普通商品</el-radio>
+                        <el-radio :label="1">批次管理 (保质期)</el-radio>
+                        <el-radio :label="2">序列号管理 (手机/3C)</el-radio>
                     </el-radio-group>
                 </el-form-item>
             </el-form>
@@ -162,6 +178,7 @@ const productForm = reactive<ProductInfo>({
   pricePurchase: 0,
   priceSale: 0,
   status: 1,
+  manageType: 0,
   // id 默认为 undefined，完美符合 ProductInfo 定义
 })
 
@@ -326,6 +343,7 @@ const resetForm = () => {
     productForm.pricePurchase = 0
     productForm.unit = ''
     productForm.status = 1
+    productForm.manageType = 0
 }
 </script>
 

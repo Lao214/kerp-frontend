@@ -10,6 +10,7 @@ export interface ProductInfo {
     priceSale: number
     status: number
     remark?: string
+    manageType: number // 0:普通 1:批次 2:序列号
 }
 
 export const getProductListApi = (params: any) => request.get('/basic/product/list', { params })

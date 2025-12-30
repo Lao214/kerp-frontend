@@ -42,7 +42,7 @@
                     <template #default="{ row }">
                         <el-tag v-if="row.status === 0" type="info">草稿</el-tag>
                         <el-tag v-else-if="row.status === 1" type="success">已审核</el-tag>
-                         <el-tag v-else-if="row.status === 2" type="info">审核中</el-tag>
+                        <el-tag v-else-if="row.status === 2" type="info">审核中</el-tag>
                         <el-tag v-else type="danger">已作废</el-tag>
                     </template>
                 </el-table-column>
@@ -53,7 +53,7 @@
                     <template #default="{ row }">
                         <!-- 只有草稿状态(0)才能审核和编辑 -->
                         <el-button v-if="row.status === 2" link type="primary" icon="Edit">编辑</el-button>
-                        <el-button v-if="row.status === 2" v-permission="['psi:purchase:audit']" link type="success" icon="Check" @click="handleAudit(row)">审核</el-button>
+                        <!-- <el-button v-if="row.status === 2" v-permission="['psi:purchase:audit']" link type="success" icon="Check" @click="handleAudit(row)">审核</el-button> -->
                         <el-button v-if="row.status === 2" link type="danger" icon="Delete">删除</el-button>
                         <el-button v-else link type="info" icon="View">查看</el-button>
                     </template>
@@ -76,22 +76,26 @@
                     <el-row :gutter="20">
                         <el-col :span="6">
                             <el-form-item label="供应商" prop="supplierId">
-                                <el-select v-model="form.supplierId" placeholder="请选择供应商" filterable style="width: 100%">
+                                <el-select v-model="form.supplierId" placeholder="请选择供应商" filterable
+                                    style="width: 100%">
                                     <!-- 这里的 options 需要从 API 获取，我暂时写死几个 demo -->
-                                    <el-option v-for="supplier in supplierOptions" :key="supplier.id" :label="supplier.label" :value="supplier.id" />
+                                    <el-option v-for="supplier in supplierOptions" :key="supplier.id"
+                                        :label="supplier.label" :value="supplier.id" />
                                 </el-select>
                             </el-form-item>
                         </el-col>
                         <el-col :span="6">
                             <el-form-item label="入库仓库" prop="warehouseId">
                                 <el-select v-model="form.warehouseId" placeholder="请选择仓库" style="width: 100%">
-                                    <el-option v-for="warehouse in warehouseOptions" :key="warehouse.id" :label="warehouse.label" :value="warehouse.id" />
+                                    <el-option v-for="warehouse in warehouseOptions" :key="warehouse.id"
+                                        :label="warehouse.label" :value="warehouse.id" />
                                 </el-select>
                             </el-form-item>
                         </el-col>
                         <el-col :span="6">
                             <el-form-item label="单据日期" prop="orderDate">
-                                <el-date-picker v-model="form.orderDate" type="date" value-format="YYYY-MM-DD" style="width: 100%" />
+                                <el-date-picker v-model="form.orderDate" type="date" value-format="YYYY-MM-DD"
+                                    style="width: 100%" />
                             </el-form-item>
                         </el-col>
                         <el-col :span="6">
@@ -124,8 +128,7 @@
                                 <el-option v-for="p in productList" :key="p.id" :label="p.productName" :value="p.id">
                                     <!-- 下拉框里显示 编码+名称 -->
                                     <span style="float: left">{{ p.productName }}</span>
-                                    <span style="float: right; color: #8492a6; font-size: 13px">{{ p.productCode
-                                    }}</span>
+                                    <span style="float: right; color: #8492a6; font-size: 13px">{{ p.productCode }}</span>
                                 </el-option>
                             </el-select>
                         </template>
@@ -160,6 +163,48 @@
                         </template>
                     </el-table-column>
 
+                    <!-- 在“操作”列之前，或者“备注”列之前 -->
+                    <el-table-column label="属性明细" align="center" width="140">
+                        <template #default="{ row }">
+
+                            <!-- 情况A：普通商品 -->
+                            <span v-if="!row.manageType || row.manageType === 0" style="color:#ccc">-</span>
+
+                            <!-- 情况B：序列号商品 (SN) -->
+                            <div v-else-if="row.manageType === 2">
+                                <!-- 🔴 状态一：数量对不上 (缺SN 或 多SN) -->
+                                <!-- row.snList?.length || 0 用来防空 -->
+                                <el-button v-if="(row.snList?.length || 0) !== row.quantity" type="danger" size="small"
+                                    icon="Warning" @click="openWmsDialog(row)">
+                                    <!-- 动态计算缺几个 -->
+                                    缺 {{ Math.abs(row.quantity - (row.snList?.length || 0)) }} 个码
+                                </el-button>
+
+                                <!-- 🟢 状态二：数量完美匹配 -->
+                                <el-button v-else type="success" size="small" icon="CircleCheck" plain
+                                    @click="openWmsDialog(row)">
+                                    已录全
+                                </el-button>
+                            </div>
+
+                            <!-- 情况C：批次商品 -->
+                            <div v-else-if="row.manageType === 1">
+                                <!-- 🔴 没填批次号 -->
+                                <el-button v-if="!row.batchNo" type="danger" size="small" icon="Warning"
+                                    @click="openWmsDialog(row)">
+                                    缺批次号
+                                </el-button>
+
+                                <!-- 🟢 已填 -->
+                                <el-button v-else type="primary" size="small" icon="Edit" plain
+                                    @click="openWmsDialog(row)">
+                                    {{ row.batchNo }}
+                                </el-button>
+                            </div>
+
+                        </template>
+                    </el-table-column>
+
                     <el-table-column label="操作" width="80" align="center" fixed="right">
                         <template #default="{ $index }">
                             <el-button type="danger" link icon="Delete" @click="handleDeleteRow($index)"></el-button>
@@ -173,11 +218,71 @@
                 <el-button type="primary" @click="handleSubmit" :loading="loading">提 交 订 单</el-button>
             </template>
         </el-dialog>
+
+        <!-- WMS 信息录入弹窗 -->
+        <el-dialog :title="wmsTitle" v-model="wmsVisible" width="500px">
+
+            <!-- 场景A：批次管理 -->
+            <div v-if="currentRow.manageType === 1">
+                <el-form label-width="80px">
+                    <el-form-item label="批次号">
+                        <el-input v-model="currentRow.batchNo" placeholder="请输入生产批号" />
+                    </el-form-item>
+                    <el-form-item label="过期日期">
+                        <el-date-picker v-model="currentRow.expireDate" type="date" value-format="YYYY-MM-DD"
+                            placeholder="请选择有效期" style="width: 100%" />
+                    </el-form-item>
+                </el-form>
+            </div>
+
+            <!-- 场景B：序列号管理 -->
+            <div v-if="currentRow.manageType === 2">
+                <el-alert type="info" :closable="false" style="margin-bottom: 10px;">
+                    当前采购数量：<b>{{ currentRow.quantity }}</b>，需录入 <b>{{ currentRow.quantity }}</b> 个SN码。
+                    <br />(一行一个，支持扫码枪连续扫码)
+                </el-alert>
+
+                <!-- 在扫码输入框的上面或下面，加一行操作栏 -->
+                <div v-if="currentRow.manageType === 2" style="margin-bottom: 10px;">
+
+                    <!-- 场景一：扫供应商的码 -->
+                    <el-alert type="info" :closable="false" style="margin-bottom: 5px;">
+                        方式A：直接扫描商品包装上的条码。
+                    </el-alert>
+
+                    <!-- 场景二：系统生成内部码 -->
+                    <el-row :gutter="10" align="middle">
+                        <el-col :span="12">
+                            <el-alert type="warning" :closable="false">
+                                方式B：商品无码？系统自动生成。
+                            </el-alert>
+                        </el-col>
+                        <el-col :span="12" style="text-align: right;">
+                            <el-button type="primary" size="small" @click="autoGenerateSn">
+                                自动生成 {{ currentRow.quantity }} 个SN
+                            </el-button>
+                        </el-col>
+                    </el-row>
+                </div>
+
+                <el-input v-model="snText" type="textarea" :rows="10" placeholder="在此处扫码或粘贴SN码，每行一个" />
+                <div style="text-align: right; margin-top: 5px; color: #666;">
+                    已录入: <span :style="{ color: snCount === currentRow.quantity ? 'green' : 'red' }">{{ snCount
+                        }}</span>
+                    / {{
+                        currentRow.quantity }}
+                </div>
+            </div>
+
+            <template #footer>
+                <el-button @click="wmsVisible = false">确 定</el-button>
+            </template>
+        </el-dialog>
     </div>
 </template>
 
 <script setup lang="ts">
-import { ref, reactive, computed, onMounted } from 'vue'
+import { ref, reactive, computed, onMounted, nextTick } from 'vue'
 import { ElMessage, type FormInstance } from 'element-plus'
 import { getPurchaseOrderListApi, addPurchaseOrderApi, getAllProductList, auditPurchaseOrderApi, getSupplierOptions, getWarehouseOptions, type PurchaseOrderDTO, type PurchaseOrderItemDTO, type Options } from '../../../api/psi/purchase'
 import { ElMessageBox } from 'element-plus'
@@ -191,6 +296,12 @@ const productList = ref<ProductInfo[]>([]) // 商品下拉源数据
 
 const supplierOptions = ref<Options[]>([])
 const warehouseOptions = ref<Options[]>([])
+
+// WMS 弹窗相关状态
+const wmsVisible = ref(false)
+const wmsTitle = ref('')
+const currentRow = ref<any>({}) // 当前正在编辑的那一行
+const snText = ref('') // SN 文本域内容
 
 // --- 列表相关的变量 ---
 const tableLoading = ref(false)
@@ -343,43 +454,153 @@ const handleProductChange = (productId: any, row: PurchaseOrderItemDTO) => {
         row.productName = product.productName || ''
         // 如果商品表里有采购参考价，填进去；没有就填0
         row.unitPrice = product.pricePurchase || 0
+        row.manageType = product.manageType // 关键！
+        // 初始化空数据
+        row.batchNo = ''
+        row.expireDate = ''
+        row.snList = []
+
+        // 🔥🔥🔥 核心修改：自动弹窗逻辑 🔥🔥🔥
+        if (row.manageType === 1 || row.manageType === 2) {
+            // 使用 nextTick 确保数据已经挂载到 row 上之后，再打开弹窗
+            nextTick(() => {
+                // 调用你之前写好的打开弹窗方法
+                openWmsDialog(row)
+                ElMessage.info(`【${product.productName}】需要录入详细属性`)
+            })
+        }
     }
 }
 
 // 提交表单
+// 提交表单
 const handleSubmit = async () => {
     if (!formRef.value) return
 
-    // 1. 校验表头
     await formRef.value.validate(async (valid) => {
         if (valid) {
-            // 2. 校验表体 (必须有一行数据)
+            // ============ 🔥 WMS 核心校验逻辑开始 🔥 ============
+
+            // 检查明细行是否为空
             if (form.items.length === 0) {
                 ElMessage.warning('请至少添加一行商品明细！')
                 return
             }
 
-            // 3. 校验每一行是否选了商品
-            for (const item of form.items) {
-                if (!item.productId) {
-                    ElMessage.warning('请检查明细行，有未选择商品的行！')
+            // 遍历每一行进行“深度质检”
+            for (const [index, item] of form.items.entries()) {
+                const rowNum = index + 1
+                const pName = item.productName || '未知商品'
+
+                // 1. 检查基础数量
+                if (!item.quantity || item.quantity <= 0) {
+                    ElMessage.error(`第${rowNum}行商品【${pName}】数量必须大于0`)
                     return
                 }
+
+                // 2. 检查批次商品 (manageType === 1)
+                if (item.manageType === 1) {
+                    if (!item.batchNo) {
+                        ElMessage.error(`第${rowNum}行商品【${pName}】是批次管理，必须录入【批次号】`)
+                        return
+                    }
+                    // 如果是采购，通常还需要校验过期日期
+                    // if (!item.expireDate) { ... }
+                }
+
+                // 3. 检查序列号商品 (manageType === 2)
+                if (item.manageType === 2) {
+                    const requiredQty = item.quantity
+                    const inputSnList = item.snList || [] // 防空指针
+                    const actualQty = inputSnList.length
+
+                    if (requiredQty !== actualQty) {
+                        ElMessage.error(
+                            `第${rowNum}行商品【${pName}】是序列号管理，单据数量 ${requiredQty}，实际录入SN ${actualQty} 个。数量不一致！`
+                        )
+                        return // 阻断提交
+                    }
+
+                    // 3.1 还可以加一个简单的查重校验（防止同一个单据里录了重复的SN）
+                    const uniqueSn = new Set(inputSnList)
+                    if (uniqueSn.size !== inputSnList.length) {
+                        ElMessage.error(`第${rowNum}行商品【${pName}】录入了重复的SN码，请检查！`)
+                        return
+                    }
+                }
             }
+            // ============ 🔥 WMS 核心校验逻辑结束 🔥 ============
 
             loading.value = true
             try {
+                // 调用对应的 API (采购用 addPurchaseOrderApi，销售用 addSalesOrderApi)
+                // await addPurchaseOrderApi(form) 
+                // 这里的 API 根据你当前的文件是 采购 还是 销售 自己换一下
                 await addPurchaseOrderApi(form)
-                ElMessage.success('采购单创建成功！')
+
+                ElMessage.success('单据创建成功！')
                 visible.value = false
-                getList() // 👈 加上这行
-                // 这里可以重置表单 form.items = []
+                // 重置表单
                 form.items = []
+                form.remark = ''
+                getList()
             } finally {
                 loading.value = false
             }
         }
     })
+}
+
+// 打开录入弹窗
+const openWmsDialog = (row: any) => {
+    currentRow.value = row
+    if (row.manageType === 1) {
+        wmsTitle.value = '录入批次信息'
+    } else {
+        wmsTitle.value = '录入序列号(SN)'
+        // 把数组转回文本显示 (换行符分隔)
+        snText.value = (row.snList || []).join('\n')
+    }
+    wmsVisible.value = true
+}
+
+// 监听 SN 文本变化，实时回写到 row.snList
+import { watch } from 'vue'
+watch(snText, (val) => {
+    if (currentRow.value.manageType === 2) {
+        // 过滤空行，拆分成数组
+        const list = val.split('\n').map(s => s.trim()).filter(s => s)
+        currentRow.value.snList = list
+    }
+})
+
+// 计算当前录入的 SN 个数
+const snCount = computed(() => {
+    if (!snText.value) return 0
+    return snText.value.split('\n').filter(s => s.trim()).length
+})
+
+// 自动生成 SN 码
+const autoGenerateSn = () => {
+    const qty = currentRow.value.quantity
+    const prefix = 'SN' + new Date().toISOString().slice(2, 10).replace(/-/g, '') // SN231229
+
+    // 生成逻辑：前缀 + 时间戳 + 随机数 (或者你可以调后端接口获取严格递增的序列号)
+    const newSns = []
+    for (let i = 0; i < qty; i++) {
+        // 简单模拟：SN231229 + 随机4位
+        const randomSuffix = Math.floor(Math.random() * 10000).toString().padStart(4, '0')
+        newSns.push(`${prefix}${randomSuffix}${i}`)
+    }
+
+    // 覆盖还是追加？通常是覆盖，或者追加不够的数量
+    // 这里简单粗暴：直接填满
+    currentRow.value.snList = newSns
+
+    // 把生成的码回填到文本域显示给用户看
+    snText.value = newSns.join('\n')
+
+    ElMessage.success(`已自动生成 ${qty} 个序列号，请记得打印标签！`)
 }
 </script>
 

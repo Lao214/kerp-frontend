@@ -26,6 +26,11 @@ export interface PurchaseOrderItemDTO {
   unitPrice: number
   totalPrice?: number 
   remark?: string
+  // 🔥 新增 WMS 字段
+  manageType?: number // 前端辅助字段，用于判断显示什么输入框
+  batchNo?: string
+  expireDate?: string
+  snList?: string[]   // 序列号列表
 }
 
 export interface Options {
