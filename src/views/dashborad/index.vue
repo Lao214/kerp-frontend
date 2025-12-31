@@ -34,6 +34,22 @@
                     <el-statistic title="累计销售总额" :value="data.totalSales" precision="2" prefix="¥" />
                 </el-card>
             </el-col>
+            <el-col :span="6">
+                <el-card shadow="hover">
+                    <!-- 颜色用金色 #E6A23C -->
+                    <el-statistic title="净毛利" :value="data.profit" precision="2" prefix="¥" :value-style="{ color: '#E6A23C' }">
+                    <template #suffix><el-icon><Coin /></el-icon></template>
+                    </el-statistic>
+                </el-card>
+            </el-col>
+            <el-col :span="6">
+                <el-card shadow="hover">
+                    <!-- 颜色用金色 #E6A23C -->
+                    <el-statistic title="今日净毛利" :value="data.todayProfit" precision="2" prefix="¥" :value-style="{ color: '#E6A23C' }">
+                    <template #suffix><el-icon><Coin /></el-icon></template>
+                    </el-statistic>
+                </el-card>
+            </el-col>
         </el-row>
 
         <!-- 2. 中间折线图 -->
@@ -47,6 +63,8 @@
             <!-- ECharts 容器，必须给高度 -->
             <div ref="chartRef" style="width: 100%; height: 400px;"></div>
         </el-card>
+
+        <!-- <img src="../../assets/生成祝福2026.png" width="300px" alt=""> -->
     </div>
 </template>
 
@@ -54,13 +72,16 @@
 import { ref, reactive, onMounted, nextTick } from 'vue'
 import * as echarts from 'echarts'
 import { getDashboardApi } from '../../api/report'
+import { da } from 'element-plus/es/locales.mjs'
 
 // 响应式数据
 const data = reactive({
     todaySales: 0,
     todayPurchase: 0,
     totalStock: 0,
-    totalSales: 0
+    totalSales: 0,
+    todayProfit: 0,
+    profit: 0
 })
 
 const chartRef = ref(null)
@@ -110,12 +131,15 @@ const initChart = (dates: string[], sales: number[], purchase: number[]) => {
 // 加载数据
 onMounted(async () => {
     const res: any = await getDashboardApi()
+    console.log(res)
 
     // 填充大数字
     data.todaySales = res.todaySales
     data.todayPurchase = res.todayPurchase
     data.totalStock = res.totalStock
     data.totalSales = res.totalSales
+    data.todayProfit = res.todayProfit
+    data.profit = res.profit
 
     // 渲染图表 (等 DOM 更新后)
     nextTick(() => {

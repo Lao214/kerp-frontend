@@ -88,6 +88,9 @@ export const getWarehouseOptions = async () => {
   return res as Options[]
 }
 
+// 获取销售单详情
 export const getSalesOrderDetailApi = (id: string) => {
   return request.get<SalesOrderDetail>(`/psi/sales/detail/${id}`)
 }
+
+

@@ -27,14 +27,35 @@
         <!-- 采购单详情弹窗 (回显) -->
         <el-dialog title="单据详情审核" v-model="detailVisible" width="800px">
             <div v-if="currentOrder" class="order-detail">
+
+                <!-- 顶部 Tag 区分 -->
+                <div style="margin-bottom: 15px">
+                    <el-tag v-if="currentOrder.bizType === 'PURCHASE'" type="warning" size="large">采购单</el-tag>
+                    <el-tag v-if="currentOrder.bizType === 'SALE'" type="success" size="large">销售单</el-tag>
+                </div>
+
                 <el-descriptions title="基本信息" :column="2" border>
+                    <el-descriptions-item label="单据编号">{{ currentOrder.orderNo }}</el-descriptions-item>
+                    <el-descriptions-item label="日期">{{ currentOrder.orderDate }}</el-descriptions-item>
+                    
+                    <!-- 动态显示 供应商 or 客户 -->
+                    <el-descriptions-item :label="currentOrder.bizType === 'PURCHASE' ? '供应商' : '客户'">
+                        {{ currentOrder.bizType === 'PURCHASE' ? currentOrder.supplierName : currentOrder.customerName }}
+                    </el-descriptions-item>
+                    
+                    <el-descriptions-item label="总金额">
+                        <span style="color: red; font-weight: bold;">¥{{ currentOrder.totalAmount }}</span>
+                    </el-descriptions-item>
+                </el-descriptions>
+
+                <!-- <el-descriptions title="基本信息" :column="2" border>
                     <el-descriptions-item label="单据编号">{{ currentOrder.orderNo }}</el-descriptions-item>
                     <el-descriptions-item label="单据日期">{{ currentOrder.orderDate }}</el-descriptions-item>
                     <el-descriptions-item label="供应商ID">{{ currentOrder.supplierId }}</el-descriptions-item>
                     <el-descriptions-item label="总金额" label-class-name="price-label">
                         <span style="color: red; font-weight: bold;">¥{{ currentOrder.totalAmount }}</span>
                     </el-descriptions-item>
-                </el-descriptions>
+                </el-descriptions> -->
 
                 <h4 style="margin-top: 20px">商品明细</h4>
                 <el-table :data="currentOrder.items" border size="small">
@@ -56,6 +77,7 @@
 import { ref, onMounted } from 'vue'
 import { getMyTasksApi, completeTaskApi } from '../../../api/system/flow'
 import { getPurchaseOrderDetailApi } from '../../../api/psi/purchase'
+import { getSalesOrderDetailApi } from '../../../api/psi/sales' // 记得在 sales.ts 里定义这个
 import { ElMessage, ElMessageBox } from 'element-plus'
 
 const loading = ref(false)
@@ -80,9 +102,19 @@ const handleDetail = async (task: any) => {
     selectedTask.value = task
     loading.value = true
     try {
-        // 这里的 task.orderId 是后端存入的 BusinessKey
-        const res: any = await getPurchaseOrderDetailApi(task.orderId)
-        currentOrder.value = res
+        let res = null
+
+        console.log(task)
+
+        // 🔥 根据 bizType 分流
+        if (task.bizType === 'PURCHASE') {
+            res = await getPurchaseOrderDetailApi(task.orderId)
+        } else if (task.bizType === 'SALE') {
+            res = await getSalesOrderDetailApi(task.orderId)
+        }
+
+        // 把 bizType 也塞进对象里，方便 Template 判断显示
+        currentOrder.value = { ...res, bizType: task.bizType }
         detailVisible.value = true
     } finally {
         loading.value = false

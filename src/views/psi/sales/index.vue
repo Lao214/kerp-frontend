@@ -42,6 +42,7 @@
                     <template #default="{ row }">
                         <el-tag v-if="row.status === 0" type="info">草稿</el-tag>
                         <el-tag v-else-if="row.status === 1" type="success">已审核</el-tag>
+                        <el-tag v-else-if="row.status === 2" type="success">审核中</el-tag>
                         <el-tag v-else type="danger">已作废</el-tag>
                     </template>
                 </el-table-column>
@@ -491,6 +492,7 @@ const handleProductChange = (val: string | number, row: SalesOrderItemDTO) => {
         row.productName = product.productName || ''
         // 如果商品表里有销售参考价，填进去；没有就填0
         row.unitPrice = product.priceSale || 0
+        row.manageType = product.manageType
     }
 }
 
