@@ -123,6 +123,7 @@ const allMenus = [
         children: [
             { path: '/psi/purchase', title: '采购单管理', perm: 'psi:purchase:list' },
             { path: '/psi/sales', title: '销售单管理', perm: 'psi:sales:list' },
+            { path: '/psi/salesReturn', title: '销售退货单管理', perm: 'psi:return:list' },
             { path: '/psi/inventory', title: '库存查询', perm: 'psi:inventory:list' }
         ]
     },

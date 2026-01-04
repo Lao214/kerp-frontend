@@ -107,6 +107,12 @@ const routes: Array<RouteRecordRaw> = [
         meta: { title: '销售单管理' }
       },
       {
+        path: 'salesReturn',
+        name: 'SalesReturn',
+        component: () => import('../views/psi/return/index.vue'),
+        meta: { title: '销售退货单管理' }
+      },
+      {
         path: 'inventory',
         name: 'InventoryReport',
         component: () => import('../views/psi/inventory/index.vue'),
