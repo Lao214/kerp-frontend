@@ -18,8 +18,8 @@
                     <el-button type="primary" icon="Search" @click="handleQuery">搜索</el-button>
                     <el-button icon="Refresh" @click="resetQuery">重置</el-button>
                     <!-- 新增按钮放在右边 -->
-                    <el-button type="success" icon="Plus" plain @click="handleOpen"
-                        style="margin-left: 10px">新增采购单</el-button>
+                    <el-button type="success" icon="Plus" plain @click="handleOpen"  style="margin-left: 10px">新增采购单</el-button>
+                    <el-button type="warning" icon="Iphone" @click="openMobileScan">手机化身扫码枪</el-button>
                 </el-form-item>
             </el-form>
 
@@ -278,15 +278,110 @@
                 <el-button @click="wmsVisible = false">确 定</el-button>
             </template>
         </el-dialog>
+
+        <!-- 扫码连接弹窗 -->
+        <el-dialog title="手机扫码联动" v-model="scanDialogVisible" width="400px" center>
+            <div style="text-align: center;">
+                <p style="margin-bottom: 20px; color: #666;">请使用 APP 扫描下方二维码<br>建立连接后，手机扫码将自动同步到此页面</p>
+                
+                <!-- 二维码组件 -->
+                <qrcode-vue :value="qrCodeValue" :size="200" level="H" />
+                
+                <div style="margin-top: 20px;">
+                <el-tag v-if="isWsConnected" type="success">🟢 已连接，请在手机上扫商品</el-tag>
+                <el-tag v-else type="info">🔴 等待连接...</el-tag>
+                </div>
+            </div>
+        </el-dialog>
+
     </div>
 </template>
 
 <script setup lang="ts">
-import { ref, reactive, computed, onMounted, nextTick } from 'vue'
+import { ref, reactive, computed, onMounted, nextTick, onUnmounted } from 'vue'
 import { ElMessage, type FormInstance } from 'element-plus'
 import { getPurchaseOrderListApi, addPurchaseOrderApi, getAllProductList, auditPurchaseOrderApi, getSupplierOptions, getWarehouseOptions, type PurchaseOrderDTO, type PurchaseOrderItemDTO, type Options } from '../../../api/psi/purchase'
 import { ElMessageBox } from 'element-plus'
 import type { ProductInfo } from '../../../api/product'
+import QrcodeVue from 'qrcode.vue'
+import { v4 as uuidv4 } from 'uuid' // 需要 npm install uuid
+import { ElNotification } from 'element-plus'
+
+const openMobileScan = () => {
+    // 1. 生成唯一会话ID
+    const uuid = uuidv4()
+    // 2. 生成二维码内容 (格式：SCAN|UUID) 手机扫了就知道要做什么
+    qrCodeValue.value = `SCAN|${uuid}`
+    scanDialogVisible.value = true
+    
+    // 3. 建立 WebSocket 连接
+    initWebSocket(uuid)
+}
+
+const initWebSocket = (uuid: string) => {
+    // 注意：生产环境 ws:// 要改成 wss://
+    const wsUrl = `ws://localhost:8080/ws/scan/${uuid}`
+    ws = new WebSocket(wsUrl)
+
+    ws.onopen = () => {
+        isWsConnected.value = true
+        console.log('WS 连接成功')
+    }
+
+    ws.onmessage = (event) => {
+        // 🔥 收到消息了！这是手机扫过来的 SN 码
+        const snCode = event.data
+        console.log('收到扫码:', snCode)
+        
+        // 执行之前的添加逻辑 (模拟在输入框回车)
+        handleScanInput(snCode)
+        
+        ElNotification({
+        title: '扫码成功',
+        message: `已录入: ${snCode}`,
+        type: 'success',
+        duration: 2000
+        })
+    }
+
+    ws.onclose = () => {
+        isWsConnected.value = false
+    }
+}
+
+// 处理扫码输入
+const handleScanInput = (sn: string) => {
+    // 这里复用你之前写好的逻辑：
+    // 1. 在表格里找商品 -> 数量+1
+    // 2. 或者在 SN 录入弹窗里 -> addSnTag()
+    // 简单演示：假设我们在录入 SN 弹窗打开的情况下
+    if (wmsVisible.value && currentRow.value) {
+        currentInputSn.value = sn
+        addSnTag() // 调用之前的添加 Tag 方法
+    } else {
+        ElMessage.warning('请先打开某个商品的 SN 录入窗口，再使用手机扫码')
+    }
+}
+
+const addSnTag = () => {
+    const sn = currentInputSn.value.trim()
+    if (!sn) return
+
+    // 校验是否重复录入
+    if (currentRow.value.snList.includes(sn)) {
+        ElMessage.warning('该SN码已在列表中')
+        return
+    }
+
+    // 校验数量是否超标
+    if (currentRow.value.snList.length >= currentRow.value.quantity) {
+        ElMessage.warning('录入数量已达标，不可多录')
+        return
+    }
+
+    currentRow.value.snList.push(sn)
+    currentInputSn.value = '' // 清空输入框，方便下一次扫码
+}
 
 // --- 状态定义 ---
 const visible = ref(false)
@@ -302,6 +397,13 @@ const wmsVisible = ref(false)
 const wmsTitle = ref('')
 const currentRow = ref<any>({}) // 当前正在编辑的那一行
 const snText = ref('') // SN 文本域内容
+
+// 扫码相关状态
+const scanDialogVisible = ref(false)
+const qrCodeValue = ref('')
+const isWsConnected = ref(false)
+const currentInputSn = ref('')
+let ws: WebSocket | null = null
 
 // --- 列表相关的变量 ---
 const tableLoading = ref(false)
@@ -471,8 +573,6 @@ const handleProductChange = (productId: any, row: PurchaseOrderItemDTO) => {
         }
     }
 }
-
-// 提交表单
 // 提交表单
 const handleSubmit = async () => {
     if (!formRef.value) return
@@ -602,6 +702,11 @@ const autoGenerateSn = () => {
 
     ElMessage.success(`已自动生成 ${qty} 个序列号，请记得打印标签！`)
 }
+
+// 记得在组件卸载时断开连接
+onUnmounted(() => {
+  ws?.close()
+})
 </script>
 
 <style scoped>
